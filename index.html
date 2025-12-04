@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SECURE TERMINAL // SYLAS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /*
+         * --- GLOBAL STYLES & VARIABLES ---
+         */
+        :root {
+            --term-purple: #a855f7; /* Primary Terminal Color (purple-500) */
+            --term-purple-dim: #581c87; /* Dimmed/Background Purple (purple-900) */
+            --term-bg: #050505; /* Near Black */
+            --scanline-color: rgba(168, 85, 247, 0.1);
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #000;
+            color: var(--term-purple);
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* --- BACKGROUND ASSETS --- */
+        #bg-layer {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            /* Using a placeholder image URL for stability */
+            background-image: url('https://placehold.co/1920x1080/050505/581c87?text=SECURE+FACILITY+BACKGROUND'); 
+            background-size: cover;
+            background-position: center;
+            /* Filter applied to match the purple/glitch aesthetic */
+            filter: sepia(1) hue-rotate(250deg) saturate(3) brightness(0.6);
+            transition: filter 1s ease;
+        }
+
+        #bg-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.95) 100%);
+        }
+
+        .scanline {
+            width: 100%;
+            height: 100px;
+            z-index: 999;
+            background: linear-gradient(0deg, rgba(0,0,0,0) 0%, var(--scanline-color) 50%, rgba(0,0,0,0) 100%);
+            opacity: 0.1;
+            position: absolute;
+            bottom: 100%;
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes scanline {
+            0% { bottom: 100%; }
+            100% { bottom: -100px; }
+        }
+
+        .img-recolor-purple {
+            /* Recolor logic for the SCP logo */
+            filter: invert(29%) sepia(55%) saturate(3574%) hue-rotate(264deg) brightness(96%) contrast(93%);
+        }
+
+        /* --- COMMON LAYOUT & TRANSITIONS --- */
+        .stage-container {
+            position: fixed; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(5px);
+            z-index: 50;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+        .hidden-stage { opacity: 0; pointer-events: none; visibility: hidden; }
+
+        /* --- STAGE 1: LOGIN --- */
+        #login-box {
+            border: 2px solid var(--term-purple);
+            padding: 2rem;
+            width: 90%;
+            max-width: 400px;
+            background: rgba(10, 0, 15, 0.95);
+            box-shadow: 0 0 20px var(--term-purple-dim);
+            text-align: center;
+            border-radius: 6px;
+        }
+
+        .input-sim {
+            background: #050505;
+            border: 1px solid var(--term-purple-dim);
+            color: var(--term-purple);
+            padding: 10px; width: 100%;
+            margin-top: 10px; font-family: monospace;
+            height: 40px; display: flex; align-items: center;
+            overflow: hidden; 
+            border-radius: 4px;
+        }
+
+        .auth-btn {
+            background: var(--term-purple-dim);
+            color: #fff; border: 1px solid var(--term-purple);
+            width: 100%; padding: 10px; margin-top: 20px;
+            font-family: 'Courier New', monospace; font-weight: bold;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 2px;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+        .auth-btn:not(:disabled):hover { 
+            background: var(--term-purple); 
+            box-shadow: 0 0 10px var(--term-purple); 
+        }
+        .auth-btn:disabled { 
+            background: #333; 
+            border-color: #555; 
+            color: #888; 
+            cursor: not-allowed; 
+            box-shadow: none; 
+        }
+
+        /* --- STAGE 2: KEYCARD/CODE --- */
+        #keycard-scanner {
+            /* Styling for the interactive keycard area */
+            border: 2px solid var(--term-purple-dim);
+            transition: all 0.5s ease;
+        }
+
+        #keycard-scanner.scan-active {
+            animation: glow-scan 0.5s infinite alternate;
+        }
+
+        @keyframes glow-scan {
+            from { box-shadow: 0 0 5px var(--term-purple-dim); }
+            to { box-shadow: 0 0 20px var(--term-purple); }
+        }
+
+
+        /* --- STAGE 3: MAIN TERMINAL (Styles remain largely the same) --- */
+        #terminal-container {
+            display: none; height: 100vh; flex-direction: column;
+            width: 100vw;
+        }
+        
+        header {
+            border-bottom: 2px solid var(--term-purple);
+            background: rgba(0,0,0,0.8); padding: 1rem;
+            display: flex; align-items: center; justify-content: space-between;
+            backdrop-filter: blur(5px);
+            flex-direction: row; 
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        #header-info {
+            order: 2;
+            min-width: 100px;
+        }
+        
+        #workspace { 
+            flex: 1; 
+            display: flex; 
+            overflow: hidden; 
+            flex-direction: row; 
+            height: calc(100vh - 80px); 
+        }
+        
+        #sidebar {
+            width: 250px; 
+            border-right: 2px solid var(--term-purple-dim);
+            background: rgba(10, 0, 20, 0.7); 
+            display: flex; 
+            flex-direction: column;
+            padding-top: 2rem; 
+            backdrop-filter: blur(5px);
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            #workspace { flex-direction: column; }
+            #sidebar {
+                width: 100%; 
+                height: auto; 
+                border-right: none; 
+                border-bottom: 2px solid var(--term-purple-dim);
+                padding-top: 0;
+                flex-direction: row;
+                justify-content: space-around;
+                overflow-x: auto;
+                flex-shrink: 0;
+            }
+            .tab-btn {
+                border-left: none;
+                border-bottom: 4px solid transparent;
+                padding: 0.5rem 1rem;
+                text-align: center;
+                flex-shrink: 0;
+            }
+            .tab-btn.active {
+                border-left: none;
+                border-bottom: 4px solid var(--term-purple);
+                padding-left: 1rem;
+            }
+            #sidebar > .mt-auto { display: none; }
+            #content-viewer { height: 100%; }
+        }
+        
+        .tab-btn {
+            background: transparent; border: none;
+            border-left: 4px solid transparent; color: var(--term-purple-dim);
+            padding: 1rem; text-align: left; font-family: 'Courier New', monospace;
+            font-weight: bold; font-size: 1.1rem; cursor: pointer; transition: 0.3s;
+            text-transform: uppercase;
+        }
+        .tab-btn:hover { background: rgba(168, 85, 247, 0.1); color: var(--term-purple); padding-left: 1.5rem; }
+        .tab-btn.active {
+            border-left: 4px solid var(--term-purple); color: var(--term-purple);
+            background: rgba(168, 85, 247, 0.15); text-shadow: 0 0 8px var(--term-purple);
+        }
+        
+        #content-viewer { flex: 1; padding: 2rem; overflow-y: auto; background: rgba(0,0,0,0.4); }
+        .content-panel { display: none; animation: fadeIn 0.5s ease; }
+        .content-panel.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .data-block {
+            border: 1px solid var(--term-purple-dim); background: rgba(0,0,0,0.7);
+            padding: 1.5rem; margin-bottom: 1.5rem;
+            box-shadow: 0 0 10px rgba(88, 28, 135, 0.2); backdrop-filter: blur(2px);
+            border-radius: 6px;
+        }
+        .label { color: #d8b4fe; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .value { color: #fff; margin-bottom: 0.5rem; display: block; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: var(--term-purple-dim); border-radius: 4px; }
+        
+        .grid-cols-2 > div { min-width: 100%; }
+        @media (min-width: 640px) {
+             .grid-cols-1.md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background Layers -->
+    <div id="bg-layer"></div>
+    <div id="bg-overlay"></div>
+    <div class="scanline"></div>
+
+    <!-- === STAGE 1: LOGIN === -->
+    <div id="stage-login" class="stage-container">
+        <div id="login-box">
+            <!-- Placeholder image for the SCP logo -->
+            <img src="https://placehold.co/96x96/000000/a855f7?text=SCP" 
+                 class="h-24 mx-auto mb-4 img-recolor-purple">
+            <h2 class="text-xl tracking-widest text-purple-400 font-bold mb-1">FOUNDATION TERMINAL</h2>
+            <p class="text-xs text-purple-800 mb-6">SECURE ACCESS GATEWAY</p>
+
+            <div class="text-left text-xs text-purple-500 mb-1">USER ID</div>
+            <div class="input-sim mb-4" id="user-display"></div>
+            
+            <div class="text-left text-xs text-purple-500 mb-1">PASSPHRASE</div>
+            <div class="input-sim" id="pass-display"></div>
+
+            <button id="btn-auth" class="auth-btn opacity-50 pointer-events-none" onclick="attemptAuth()">AUTHORIZE</button>
+            <div id="login-msg" class="h-6 mt-2 text-red-500 font-bold tracking-widest text-sm"></div>
+        </div>
+    </div>
+
+    <!-- === STAGE 2: KEYCARD SCAN & CODE ENTRY === -->
+    <div id="stage-keycard-code" class="stage-container hidden-stage">
+        <div class="bg-black/90 p-8 border-2 border-purple-900 rounded-lg shadow-[0_0_30px_rgba(88,28,135,0.4)] text-center w-11/12 max-w-lg">
+            <h2 class="text-purple-400 text-lg tracking-widest mb-4 border-b border-purple-900 pb-2">L5 ACCESS PROTOCOL INITIATED</h2>
+            
+            <!-- Mumbo Jumbo 1 (Pre-Scan) -->
+            <div id="mumbo-jumbo-pre" class="text-xs text-purple-700 mb-6 font-mono whitespace-pre-wrap text-left min-h-[5em]"></div>
+
+            <!-- Keycard Scanner UI -->
+            <div id="keycard-scanner" class="flex flex-col items-center justify-center p-6 bg-black/50 rounded-lg transition-colors duration-300">
+                <i id="keycard-icon" class="fa-solid fa-id-card text-6xl text-purple-700 animate-pulse"></i>
+                <p id="keycard-status" class="mt-4 text-white font-bold tracking-wider">INITIATING SCAN SEQUENCE...</p>
+            </div>
+            
+            <!-- Auto Code Entry Section -->
+            <div id="code-entry-section" class="mt-8">
+                <div class="text-xs text-purple-500 mb-1 text-left">AUTOMATED DECRYPTION KEY</div>
+                <div id="auto-code-display" class="input-sim mb-4 justify-start h-10 min-h-[40px]"></div>
+            </div>
+
+            <!-- Mumbo Jumbo 2 (Post-Code) -->
+            <div id="mumbo-jumbo-post" class="text-xs text-purple-700 mt-6 font-mono whitespace-pre-wrap text-left min-h-[5em]"></div>
+
+            <button id="btn-access" class="auth-btn hidden" onclick="finalizeAccess()">ACCESS TERMINAL</button>
+        </div>
+    </div>
+
+    <!-- === STAGE 3: TERMINAL === -->
+    <div id="terminal-container">
+        <header>
+            <div class="flex items-center gap-4">
+                <img src="https://placehold.co/48x48/000000/a855f7?text=SCP" 
+                     class="h-12 img-recolor-purple">
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider">SITE-45 | WHITELIST DEPARTMENT</h1>
+                    <div class="text-xs text-purple-500 font-bold uppercase">LEVEL 5 CLEARANCE // OoTA AUTHORIZED ONLY</div>
+                    <div class="text-[10px] text-purple-900">REDACTED TO ONLY MEMBERS OF THE OFFICE OF THE ADMINISTRATOR</div>
+                </div>
+            </div>
+            <div id="header-info" class="text-right">
+                <div class="text-xs text-purple-500">CONNECTED AS</div>
+                <div class="font-bold">RESH-1 // CONTRACTOR</div>
+            </div>
+        </header>
+
+        <div id="workspace">
+            <nav id="sidebar">
+                <button class="tab-btn active" onclick="switchTab('bio')">01 // PERSONNEL FILE</button>
+                <button class="tab-btn" onclick="switchTab('background')">02 // BACKGROUND</button>
+                <button class="tab-btn" onclick="switchTab('logs')">03 // LOGS</button>
+                <button class="tab-btn" onclick="switchTab('loadout')">04 // ASSIGNMENT</button>
+                <div class="mt-auto p-4 text-xs text-purple-800 opacity-50 hidden md:block">TERMINAL ID: T-8842<br>SESSION: SECURE</div>
+            </nav>
+
+            <main id="content-viewer">
+                <!-- BIO TAB -->
+                <div id="bio" class="content-panel active">
+                    <div class="flex items-center gap-4 border-b border-purple-900 pb-4 mb-6">
+                        <!-- Placeholder image for the character photo -->
+                        <img src="https://placehold.co/100x100/1e0a29/a855f7?text=SYLAS" class="h-16 opacity-100 rounded-full border border-purple-600"> 
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">MALICE CATO</h2>
+                            <p class="text-purple-400">CODENAME: SYLAS</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="data-block">
+                            <h3 class="text-lg border-b border-purple-800 pb-2 mb-4 text-white"><i class="fa-solid fa-id-card mr-2"></i> FOUNDATIONAL RECORDKEEPING</h3>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div><span class="label">Age:</span> <span class="value">20</span></div>
+                                <div><span class="label">Sex:</span> <span class="value">Male</span></div>
+                                <div><span class="label">Height:</span> <span class="value">5'5</span></div>
+                                <div><span class="label">Nationality:</span> <span class="value">Latin/German</span></div>
+                                <div class="col-span-2"><span class="label">Alignment:</span> <span class="value">Foundation "DOTA"</span></div>
+                            </div>
+                        </div>
+                        <div class="data-block">
+                            <h3 class="text-lg border-b border-purple-800 pb-2 mb-4 text-white"><i class="fa-solid fa-dna mr-2"></i> ADDITIONAL INFORMATION</h3>
+                            <p class="text-sm text-gray-300 mb-2"><span class="label">Attributes:</span> Malice is super intelligent and has two different colored eyes, "gray and red." He has Semi short brown hair.</p>
+                            <p class="text-sm text-gray-300 mb-2"><span class="label">Preferences/hobbies:</span> Malice does coding and computer science for fun, along with construction of tech. He prefers baggy clothes.</p>
+                        </div>
+                        <div class="data-block col-span-1 md:col-span-2">
+                            <h3 class="text-lg border-b border-purple-800 pb-2 mb-4 text-white"><i class="fa-solid fa-brain mr-2"></i> EXPERIENCED IN</h3>
+                            <div class="flex flex-wrap gap-2 text-sm text-gray-300">
+                                <span class="bg-purple-900 text-white px-2 py-1 text-xs rounded-full">Computer Science</span>
+                                <span class="bg-purple-900 text-white px-2 py-1 text-xs rounded-full">Computer Engineering</span>
+                                <span class="bg-purple-900 text-white px-2 py-1 text-xs rounded-full">Math</span>
+                                <span class="bg-purple-900 text-white px-2 py-1 text-xs rounded-full">Coding</span>
+                                <span class="bg-purple-900 text-white px-2 py-1 text-xs rounded-full">Weapon Engineering</span>
+                                <span class="bg-purple-900 text-white px-2 py-1 text-xs rounded-full">Weapon modification</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BACKGROUND TAB (Content remains the same) -->
+                <div id="background" class="content-panel">
+                    <div class="data-block">
+                        <h3 class="text-xl text-white mb-2">IR-4001-A | Incident Report</h3>
+                        <p class="text-sm text-gray-300 leading-relaxed mb-4">
+                            IR-4001-A Hasn't truly affected Malice in any way. As he was far away and inside the facility at the time of the event He's pretty unknown to the topic. All he knows is that's how his mother died. Nothing more, nothing less
+                        </p>
+                    </div>
+                    <div class="data-block">
+                        <h3 class="text-xl text-white mb-2">Character Background</h3>
+                        <p class="text-sm text-gray-300 leading-relaxed mb-4">
+                            As a child Malice was mischievous, growing up. Not being able to fit in due to him being ahead of his time in smarts. Thus, overall, making him skip through countless grades, Malice was a 10-year-old in 10th grade. Making his experience in school hell. He has 0 friends due to his smarts; he lacks the ability to make friends with severe social anxiety. After he graduated high school at the age of 13, he proceeded to apply and get into several colleges, where he studied and majored in. Computer engineering, coding. Once Malice finished his studies, at the age of 17, graduating with masters in all of his courses.
+                        </p>
+                        <p class="text-sm text-gray-300 leading-relaxed mb-4">
+                            After graduating, Malice and his dad, Otto, began their ways of working on weaponry, learning the ways to construct weapons and take them apart. Malice, of course, learned it quicker than his father. After which he had to teach his father more in-depth about how to construct and take apart weapons ranging from guns to katanas. If it's a weapon, Malice can take it apart and put it back together with his eyes closed. Along with such, Malice and his father Otto were modifying weapons, ranging from military grade calibers, scopes, mags, grips and triggers. Where they discovered how to modify them to make a gun deadlier then usual.
+                        </p>
+                         <p class="text-sm text-gray-300 leading-relaxed mb-4">
+                            Malice, after all of his intelligence, was searching for a job; he found an Italian computer science and engineering intelligence company that was hiring. He applied and was accepted within hours of submitting his application. He was offered a position as a computer science engineer intelligence officer. That being a very high rank within their company, Malice of course, was very excited to start a new job and get new experiences; once Malice grew to the highest rank within only 4% weeks of being within the intelligence department, being the youngest person in history to reach chief intelligence officer at the age of 18.
+                        </p>
+                         <p class="text-sm text-gray-300 leading-relaxed mb-4">
+                            Where he spent most of his time working in his office working with computers and highly classified documents. In this time he got cut kidnapped and was overall forced to use his hands in all of his fields and expertises. While Malice was succeeding in his job, his father obtained stage 4 Hodgkin's lymphoma. While suffering and not wanting to make his son worry, he pulled the trigger on his double barrel, painting his wall red inside the hospital. Malice got the phone call at his work, and he couldn't hold himself together; he fell into a dark depression with thoughts of suicide. The only thing keeping him up and alive was the fact that he had all that skill and he wanted to prove to his father that he could do it
+                        </p>
+                    </div>
+                    <div class="data-block">
+                        <h3 class="text-xl text-white mb-2">Foundational Background</h3>
+                        <p class="text-sm text-gray-300 leading-relaxed">
+                            After the foundation noticed Malice and his expertise along with his recent loss. They were watching him for weeks. Scouting to see if he was the perfect match for what they were looking for. After they finished their reports. It was handed to the higher ups. Where it was taken into review. He was then taken from his home at 18:32, where he was brought to an interrogation room filled with armed operatives with a mysterious figure wearing all black and a mask. Malice was then spoken to.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- LOGS TAB (Content remains the same) -->
+                <div id="logs" class="content-panel">
+                    <div class="data-block border-l-4 border-purple-600">
+                        <h3 class="text-xl text-white mb-2">RaDiO rEpOrT | INTERROGATION LOG</h3>
+                        <div class="font-mono text-xs text-purple-300 whitespace-pre-wrap">
+Strange man: State your name..
+Malice: What? What do you want from me..
+Strange Man: I have a job proposal for you. Now answer my questions.
+Malice: Okay, okay. My name is Malice Cato. People call me Sylas though.
+Strange Man: I see. Well, from here I've seen that you have some very good skills, in the fields of Computer Science and engineering, coding, modification of weaponry, blacksmithing.
+Malice: Well, yes. I do suppose I have skills most do not..
+Strange Man: Great, I have a job proposal for you. Would you like to work as a contractor for a task force making their technology and weaponry?
+Malice: What's in it for me?
+Strange Man: A title and a pay that you could never resist.. Power: a place to do your expertise with little to no penalty.
+Malice: I suppose then, if you say so.
+Strange Man: Great! We'll get started right away.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ASSIGNMENT TAB (Content remains the same) -->
+                <div id="loadout" class="content-panel">
+                    <div class="text-center mb-8">
+                        <!-- Placeholder image for the MTF Logo -->
+                        <img src="https://placehold.co/128x128/1e0a29/a855f7?text=RESH-1" class="h-32 mx-auto mb-4 opacity-100 border border-purple-600 rounded">
+                        <h1 class="text-3xl font-bold text-white tracking-widest">MTF RESH-1</h1>
+                        <h2 class="text-xl text-purple-500 uppercase">"Seat of Consciousness"</h2>
+                    </div>
+
+                    <div class="data-block text-justify leading-relaxed text-sm text-gray-300">
+                        <h4 class="text-purple-400 font-bold mb-2">SECURE - CONTAIN - PROTECT | RESEARCH FACILITY - 45</h4>
+                        <p class="mb-4 text-xs italic">"RESEARCH, ATTAINMENT AND SUCCESS"</p>
+                        <p class="mb-4">"Morph Storage", "Sylas Armory"</p>
+                        
+                        <p class="mb-4">
+                            Malice was later placed in a room with Resh-1, "Seat of Consciousness. In that room they went over their regulations regarding how they are not to be mentioned on site; if not followed, there would be punishment. Malice stated. "Okay, okay, okay, no need to be so serious all the time.
+                        </p>
+                        <p class="mb-4">
+                            After which he began his time as a contractor making Resh-l's weaponry and technology.
+                        </p>
+                    </div>
+
+                     <div class="grid grid-cols-1 gap-4">
+                        <h3 class="text-lg text-white border-b border-purple-800 pb-2">Anomalous Ability/Requested Tools</h3>
+                        
+                        <div class="data-block flex justify-between items-center">
+                            <div><span class="text-xl font-bold text-white">L5 keycard</span><div class="text-xs text-purple-400">Reason: Resh-1 Contractor/Intelligence</div></div>
+                            <i class="fa-solid fa-id-badge text-3xl text-purple-600"></i>
+                        </div>
+                        <div class="data-block flex justify-between items-center">
+                            <div><span class="text-xl font-bold text-white">Glock "Pistol"</span><div class="text-xs text-purple-400">Reason: Self-defense</div></div>
+                            <i class="fa-solid fa-gun text-3xl text-purple-600"></i>
+                        </div>
+                        <div class="data-block flex justify-between items-center">
+                            <div><span class="text-xl font-bold text-white">Medkit charges [black]</span><div class="text-xs text-purple-400">Reason: Larp</div></div>
+                            <i class="fa-solid fa-kit-medical text-3xl text-purple-600"></i>
+                        </div>
+                        <div class="data-block flex justify-between items-center">
+                            <div><span class="text-xl font-bold text-white">Wrench</span><div class="text-xs text-purple-400">Reason: Larp</div></div>
+                            <i class="fa-solid fa-wrench text-3xl text-purple-600"></i>
+                        </div>
+                         <div class="data-block flex justify-between items-center">
+                            <div><span class="text-xl font-bold text-white">Tablet</span><div class="text-xs text-purple-400">Reason: LARP</div></div>
+                            <i class="fa-solid fa-tablet-screen-button text-3xl text-purple-600"></i>
+                        </div>
+                     </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- === LOGIC === -->
+    <script>
+        // --- CONSTANTS ---
+        const AUTO_CODE = "7#72?#!29#($)";
+        const UNNECESSARY_MUMBO_PRE = "// INIT: QUANTUM ENTANGLEMENT CHECK\\n>>> EIGENSTATE COLLAPSE SUCCESSFUL\\n[CORE_32] BIOS.VERIFY(NON_EUCLIDEAN_INTEGRITY) :: PASS\\n-- SYLAS_MODULE_LOADING --\\n[ASYNC] COMMENCE_FRACTAL_KEY_MAPPING";
+        const UNNECESSARY_MUMBO_POST = "RESUMING EXECUTION.\\n[CORE_01] FRACTAL_HASH_MAPPED :: COMPLETE\\n[CORE_48] OOTA_PROTOCOL_LOCK :: ENGAGED\\n[SECURE] KERNEL_PATCH_V9.2 :: ACTIVE\\n>>> ACCESS_TICKET_GENERATED :: OK";
+
+        // --- STAGE 1 LOGIC ---
+        function typeText(element, text, speed, callback) {
+            let i = 0;
+            // Clear the element before starting to type
+            element.innerText = ''; 
+            function type() {
+                if (i < text.length) {
+                    // Handle newline characters in the text
+                    const char = text.charAt(i);
+                    element.innerHTML += char === '\\n' ? '<br>' : char;
+                    i++; 
+                    setTimeout(type, speed);
+                } else if (callback) callback();
+            }
+            type();
+        }
+
+        window.onload = () => {
+            setTimeout(() => {
+                // Autotype User ID
+                typeText(document.getElementById('user-display'), "RESH1_CONTRACTOR_SYLAS", 40, () => {
+                    setTimeout(() => {
+                        // Autotype Passphrase
+                        typeText(document.getElementById('pass-display'), "**************", 40, () => {
+                            // Enable Auth button
+                            const btn = document.getElementById('btn-auth');
+                            btn.classList.remove('opacity-50', 'pointer-events-none');
+                        });
+                    }, 200);
+                });
+            }, 500);
+        };
+
+        function attemptAuth() {
+            const msg = document.getElementById('login-msg');
+            msg.innerText = "VERIFYING CREDENTIALS...";
+            msg.className = "h-6 mt-2 text-yellow-500 font-bold tracking-widest text-sm animate-pulse";
+            
+            setTimeout(() => {
+                msg.innerText = "SUCCESSFUL. REDIRECTING TO L5 PROTOCOL.";
+                msg.className = "h-6 mt-2 text-green-500 font-bold tracking-widest text-sm";
+                
+                // Transition to Keycard/Code stage
+                setTimeout(() => {
+                    document.getElementById('stage-login').classList.add('hidden-stage');
+                    const nextStage = document.getElementById('stage-keycard-code');
+                    nextStage.classList.remove('hidden-stage');
+                    startKeycardSequence();
+                }, 1500);
+            }, 1000);
+        }
+
+        // --- STAGE 2 LOGIC (KEYCARD SCAN & AUTO CODE) ---
+        function startKeycardSequence() {
+            const preMumbo = document.getElementById('mumbo-jumbo-pre');
+            const scanner = document.getElementById('keycard-scanner');
+            const status = document.getElementById('keycard-status');
+            const icon = document.getElementById('keycard-icon');
+            
+            // 1. Pre-Mumbo Jumbo
+            typeText(preMumbo, UNNECESSARY_MUMBO_PRE, 10, () => {
+                // 2. Enable Keycard Scan click event
+                scanner.onclick = handleKeycardScan;
+                scanner.classList.add('cursor-pointer', 'scan-active');
+                status.innerText = "SCAN L5 KEYCARD HERE";
+                icon.classList.add('fa-id-card');
+                icon.classList.remove('fa-fingerprint');
+            });
+        }
+
+        function handleKeycardScan() {
+            const scanner = document.getElementById('keycard-scanner');
+            const status = document.getElementById('keycard-status');
+            const icon = document.getElementById('keycard-icon');
+            
+            scanner.onclick = null; // Disable clicking while processing
+            scanner.classList.remove('cursor-pointer', 'scan-active');
+            
+            icon.classList.remove('fa-id-card', 'animate-pulse', 'text-purple-700');
+            icon.classList.add('fa-fingerprint', 'text-yellow-400'); // Use fingerprint icon for scan process
+
+            status.innerText = "PROCESSING L5 CLEARANCE...";
+            status.classList.remove('text-white');
+            status.classList.add('text-yellow-400');
+
+            // --- SCANNING SIMULATION ---
+            setTimeout(() => {
+                status.innerText = "ACCESS LEVEL 5 GRANTED";
+                status.classList.remove('text-yellow-400');
+                status.classList.add('text-green-500');
+                icon.classList.remove('text-yellow-400');
+                icon.classList.add('text-green-500');
+                icon.classList.add('fa-lock-open');
+                icon.classList.remove('fa-fingerprint');
+
+
+                // Start Auto Code Entry
+                const codeDisplay = document.getElementById('auto-code-display');
+                const postMumbo = document.getElementById('mumbo-jumbo-post');
+                
+                // Type the actual complex code
+                typeText(codeDisplay, AUTO_CODE, 50, () => {
+                    // Start Post-Mumbo Jumbo and enable Final Button
+                    typeText(postMumbo, UNNECESSARY_MUMBO_POST, 10, () => {
+                        document.getElementById('btn-access').classList.remove('hidden');
+                    });
+                });
+
+            }, 2000);
+        }
+
+        function finalizeAccess() {
+            // Transition to the main terminal
+            document.getElementById('stage-keycard-code').classList.add('hidden-stage');
+            document.getElementById('terminal-container').style.display = 'flex';
+        }
+
+        // --- STAGE 3 TAB LOGIC ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.content-panel').forEach(panel => panel.classList.remove('active'));
+            event.currentTarget.classList.add('active'); 
+            document.getElementById(tabId).classList.add('active');
+        }
+    </script>
+</body>
+</html>
